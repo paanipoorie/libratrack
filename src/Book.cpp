@@ -1,5 +1,6 @@
 #include "Book.h"
 #include <stdexcept>
+#include <cctype>
 
 Book::Book(const std::string& isbn,
            const std::string& title,
@@ -21,27 +22,40 @@ bool Book::isAvailable() const {
 }
 
 bool Book::validateISBN() const {
-    if (isbn_.length() != 12) return false;
+
+    if (isbn_.length() != 13)
+        return false;
+
     for (char c : isbn_) {
-        if (!std::isdigit(c)) return false;
+        if (!std::isdigit(c))
+            return false;
     }
+
     return true;
 }
 
 void Book::decrementCopies() {
-    --copies_available_;
+
+    if (copies_available_ > 0) {
+        copies_available_--;
+    }
 }
 
 void Book::incrementCopies() {
+
     if (copies_available_ < total_copies_) {
-        ++copies_available_;
+        copies_available_++;
     }
 }
 
 void Book::setPublicationYear(int year) {
-    publication_year_ = year;
+
+    if (year > 0) {
+        publication_year_ = year;
+    }
 }
 
 std::string Book::getFullTitle() const {
-    return author_ + " - " + title_;
+
+    return title_ + " by " + author_;
 }

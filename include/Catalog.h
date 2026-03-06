@@ -3,9 +3,11 @@
 #include <vector>
 #include <string>
 #include <optional>
-
+class LoanManager;
 class Catalog {
 public:
+    Catalog();
+    Catalog(LoanManager* loanManager);
     void addBook(const Book& book);
     bool removeBook(const std::string& isbn);
     bool removeBookByIndex(int index);
@@ -23,4 +25,5 @@ public:
 
 private:
     std::vector<Book> books_;
+    LoanManager* loanManager_;
 };

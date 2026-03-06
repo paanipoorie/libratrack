@@ -6,6 +6,7 @@
 #include <vector>
 #include <string>
 
+class Catalog;
 class LoanManager {
 public:
     LoanManager(Catalog& catalog, std::vector<Member>& members);
