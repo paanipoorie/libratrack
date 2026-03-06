@@ -91,36 +91,57 @@ function Test-GCCVersion {
 
 # -- Check any C++17 capable compiler is present ------------------------------------
 function Test-CppCompiler {
-    if (Get-Command cl      -ErrorAction SilentlyContinue) { return $true }
-    if (Get-Command clang++ -ErrorAction SilentlyContinue) { return $true }
-    if (Test-GCCVersion)                                   { return $true }
+    if (Get-Command cl -ErrorAction SilentlyContinue) { return $true }
+    if (Test-GCCVersion)                              { return $true }
     return $false
+}
+
+# -- Install modern GCC via MSYS2 (self-contained, no Windows SDK needed) -----------
+function Install-ModernGCC {
+    Write-Host "  Installing MSYS2 to get a modern MinGW GCC..." -ForegroundColor Yellow
+    winget install --id MSYS2.MSYS2 --silent --accept-package-agreements --accept-source-agreements 2>&1 | Out-Null
+    Update-SessionPath
+
+    # Locate bash - MSYS2 defaults to C:\msys64
+    $msys2Bash = @("C:\msys64\usr\bin\bash.exe",
+                   "$env:SystemDrive\msys64\usr\bin\bash.exe") |
+                 Where-Object { Test-Path $_ } | Select-Object -First 1
+    if (!$msys2Bash) {
+        Write-Host "  [X] MSYS2 install failed or installed to an unexpected path." -ForegroundColor Red
+        Write-Host "      Install manually from https://www.msys2.org/ then re-run setup.ps1" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "  Updating MinGW GCC via pacman (may take a minute)..." -ForegroundColor Yellow
+    & $msys2Bash -lc "pacman -Sy --noconfirm mingw-w64-x86_64-gcc mingw-w64-x86_64-make" 2>&1 | Out-Null
+
+    $mingw64bin = "C:\msys64\mingw64\bin"
+    if (!(Test-Path $mingw64bin)) { $mingw64bin = "$env:SystemDrive\msys64\mingw64\bin" }
+    if (Test-Path $mingw64bin) {
+        $env:PATH = "$mingw64bin;$env:PATH"
+        Write-Host "  [OK] Modern GCC installed via MSYS2." -ForegroundColor Green
+    } else {
+        Write-Host "  [X] Could not locate MSYS2 MinGW64 binaries after install." -ForegroundColor Red
+        exit 1
+    }
 }
 
 # -- Ensure a C++17 compiler is available (auto-install if not) ---------------------
 if (!(Test-CppCompiler)) {
     $gppOld = (Get-Command g++ -ErrorAction SilentlyContinue) -and !(Test-GCCVersion)
     if ($gppOld) {
-        Write-Host "  [!] MinGW GCC is too old for C++17 - installing updated LLVM/Clang..." -ForegroundColor Yellow
+        Write-Host "  [!] MinGW GCC is too old for C++17 - installing updated GCC via MSYS2..." -ForegroundColor Yellow
     } else {
-        Write-Host "  [!] No C++17 compiler found - installing LLVM/Clang + Ninja..." -ForegroundColor Yellow
+        Write-Host "  [!] No C++17 compiler found - installing MinGW GCC via MSYS2..." -ForegroundColor Yellow
     }
-    Install-WingetPackage -Name "LLVM (clang++)" -WingetId "LLVM.LLVM"         -Command "clang++"
-    Install-WingetPackage -Name "Ninja"           -WingetId "Ninja-build.Ninja" -Command "ninja"
+    Install-ModernGCC
     Write-Host "  [OK] C++17 compiler ready." -ForegroundColor Green
 }
 Write-Host ""
 
 # -- Detect best available CMake generator ------------------------------------------
 function Get-CMakeGenerator {
-    # clang++ + ninja (freshly installed or pre-existing)
-    if ((Get-Command clang++ -ErrorAction SilentlyContinue) -and
-        (Get-Command ninja   -ErrorAction SilentlyContinue)) {
-        $env:CC  = "clang"
-        $env:CXX = "clang++"
-        return "Ninja"
-    }
-    # Ninja alone with a valid GCC
+    # Ninja with a valid GCC
     if ((Get-Command ninja -ErrorAction SilentlyContinue) -and (Test-GCCVersion)) {
         return "Ninja"
     }
